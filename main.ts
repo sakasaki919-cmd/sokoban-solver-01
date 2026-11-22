@@ -384,9 +384,35 @@ function solveRoomBFS(level: Level, st: StaticInfo, maxStates: number): { pushes
         const nb = boxes.slice();
         nb[bi] = target;
         nb.sort((x, y) => x - y);
+        // Solved on this push: no deadlock test or flood is needed for a
+        // successor that ends the search. The pushed box must have landed
+        // on a goal (every other box is unchanged), a goal is never dead,
+        // and no 2x2 block holding a goal is frozen, so both tests below
+        // would answer false; record the state and return straight away.
+        // (A solved state can never already be in `seen`: the first solved
+        // state generated returns at once, so none is ever recorded.)
+        if (isSolved(level, nb)) {
+          const idx = sBoxes.length;
+          sBoxes.push(nb);
+          sPlayer.push(b);
+          sParent.push(s);
+          sPushFrom.push(b);
+          sPushDir.push(di);
+          const pushes: Array<{ from: number; dir: number }> = [];
+          for (let t = idx; t > 0; t = sParent[t]!) {
+            pushes.push({ from: sPushFrom[t]!, dir: sPushDir[t]! });
+          }
+          pushes.reverse();
+          const moves = toMoves(level, pushes);
+          if (moves === '' && pushes.length > 0) return null;
+          return { pushes: pushes.length, moves };
+        }
         boxSet[b] = 0;
         boxSet[target] = 1;
-        const frozen = has2x2Deadlock(level, boxSet, target);
+        // A box pushed onto a goal can never complete a frozen 2x2 block:
+        // every 2x2 block holding the box also holds that goal, so the
+        // deadlock test would answer false. Skip the test outright.
+        const frozen = goalSet[target] ? false : has2x2Deadlock(level, boxSet, target);
         let canon2 = -1;
         if (!frozen) {
           const r2 = flood(level, boxSet, b);
